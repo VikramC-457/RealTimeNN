@@ -11,10 +11,13 @@ duration = 5
 learning_rate = 1e-4
 optimizer = keras.optimizers.SGD(learning_rate=learning_rate)
 
-def lossfunction(distX, crash, speed, distY):
+def lossfunction(predictions,distX, crash, distY):
     # Ensure that all inputs are TensorFlow tensors
 
     # Calculate the loss using the provided formula
+    XPower,YPower = predictions[0,0],predictions[0,1]
+    speed = tf.sqrt(tf.square(XPower)+tf.square(YPower))
+    
     term1 = tf.add(1.0, tf.add(tf.multiply(5.0, crash), tf.multiply(5.0, distY)))
     term2 = tf.add(distX, speed)
     loss = tf.subtract(tf.multiply(n, term1), tf.multiply(2.0, term2))
@@ -31,9 +34,6 @@ def getData():
     print(data)
     return tf.convert_to_tensor(data.reshape(1, -1), dtype=tf.float32)
 
-def getSpeed():
-    # Replace with your actual method to get speed
-    return float(input("speed"))
 
 def create_model():
     input_tensor = Input(shape=(5,))
@@ -57,7 +57,6 @@ for i in range(epoch):
         #distX = tf.constant(distX, dtype=tf.float32)
         crash = int(input("crash "))
         #crash = tf.constant(crash, dtype=tf.float32)
-        speed = getSpeed()
         #speed = tf.constant(speed, dtype=tf.float32)
         distY = float(input("distY "))
         #distY = tf.constant(distY, dtype=tf.float32)
@@ -65,7 +64,7 @@ for i in range(epoch):
         with tf.GradientTape() as tape:
             input_data = getData()
             predictions = model(input_data, training=True)
-            loss = lossfunction(distX, crash, speed, distY)
+            loss = lossfunction(predictions,distX, crash, distY)
             print("TrainingLoss: " + str(loss))
 
             # Execute commands and send them to the robot
