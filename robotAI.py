@@ -1,15 +1,16 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras import Model
+from networktables import NetworkTables
 from tensorflow import keras
 import time
 import numpy as np
 
 epoch = 300
 n = 1000
-duration = 5
+duration = 10
 learning_rate = 1e-4
-optimizer = keras.optimizers.SGD(learning_rate=learning_rate)
+optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
 
 def lossfunction(predictions,distX, crash, distY):
     # Ensure that all inputs are TensorFlow tensors
@@ -30,8 +31,13 @@ def returnData(input_data):
 
 def getData():
     # Replace with your actual data source or loading method
-    data = np.random.rand(5)
-    print(data)
+    distFront=NetworkTables.getTable('distFront')
+    distBack=NetworkTables.getTable('distBack')
+    distLeft=NetworkTables.getTable('distLeft')
+    distRight=NetworkTables.getTable('distRight')
+    data=[distFront,distBack,distLeft,distRight]
+    data = np.asarray(data)
+    #print(data)
     return tf.convert_to_tensor(data.reshape(1, -1), dtype=tf.float32)
 
 
@@ -41,7 +47,7 @@ def create_model():
     x = Dense(512, activation='relu', trainable=True)(x)
     x = Dense(512, activation='relu', trainable=True)(x)
     x = Dense(256, activation='relu', trainable=True)(x)
-    x = Dense(2, activation='sigmoid', trainable=True)(x)
+    x = Dense(2, activation='tanh', trainable=True)(x)
     model = Model(inputs=input_tensor, outputs=x)
     model.summary()
     return model
@@ -72,5 +78,5 @@ for i in range(epoch):
 
         # Compute gradients and update model weights
         gradients = tape.gradient(loss, model.trainable_weights)
-        print("Gradients: ", gradients)
+        #print("Gradients: ", gradients)
         optimizer.apply_gradients(zip(gradients, model.trainable_weights))
