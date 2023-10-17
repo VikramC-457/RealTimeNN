@@ -1,17 +1,26 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras import Model
+import sys
 from networktables import NetworkTables
 from tensorflow import keras
 import time
 import numpy as np
 
 epoch = 300
-n = 1000
+n = 100 #len of total dist to target
 duration = 10
 learning_rate = 1e-4
 optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
+def connectionListener(connected, info):
+    print(info, f"; Connected={connected}")
 
+# Initialized NT with RoboRIO IP
+IP = sys.argv[1]
+NetworkTables.initialize(server=IP)
+# Tells if NT connectes to the RoboRIO
+NetworkTables.addConnectionListener(connectionListener, immediateNotify=True)
+NetworkTables.setUpdateRate(50) # ms
 def lossfunction(predictions,distX, crash, distY):
     # Ensure that all inputs are TensorFlow tensors
 
@@ -21,20 +30,24 @@ def lossfunction(predictions,distX, crash, distY):
     
     term1 = tf.add(1.0, tf.add(tf.multiply(5.0, crash), tf.multiply(5.0, distY)))
     term2 = tf.add(distX, speed)
-    loss = tf.subtract(tf.multiply(n, term1), tf.multiply(2.0, term2))
+    loss = tf.subtract(tf.multiply(n, term1), term2)
 
     return loss
-def returnData(input_data):
+def returnData(predictions):
+    Xpower,Ypower=float(predictions[0,0]),float(predictions[0,1])
+    NetworkTables.getTable('Drive').getEntry('speedValueX').setDouble(Xpower)
+    NetworkTables.getTable('Drive').getEntry('speedValueY').setDouble(Ypower)
     # Replace with your actual implementation
     # Send commands to the robot within this function
     return None
 
 def getData():
     # Replace with your actual data source or loading method
-    distFront=NetworkTables.getTable('distFront')
-    distBack=NetworkTables.getTable('distBack')
-    distLeft=NetworkTables.getTable('distLeft')
-    distRight=NetworkTables.getTable('distRight')
+    distFront=NetworkTables.getTable('Drive').getValue(key='distance',defaultValue=2)
+    distBack=NetworkTables.getTable('Drive').getValue(key='distance',defaultValue=2)
+    distLeft=NetworkTables.getTable('Drive').getValue(key='distance',defaultValue=2)
+    distRight=NetworkTables.getTable('Drive').getValue(key='distance',defaultValue=2)
+    
     data=[distFront,distBack,distLeft,distRight]
     data = np.asarray(data)
     #print(data)
@@ -42,7 +55,8 @@ def getData():
 
 
 def create_model():
-    input_tensor = Input(shape=(5,))
+    #model is mildly complex, maybe too complex for simple A->B goal type, and probably too big for ras pi, will tune
+    input_tensor = Input(shape=(4,))
     x = Dense(256, activation='relu', trainable=True)(input_tensor)
     x = Dense(512, activation='relu', trainable=True)(x)
     x = Dense(512, activation='relu', trainable=True)(x)
@@ -58,16 +72,17 @@ for i in range(epoch):
     print("\nStart of epoch %d" % (i,))
     start_time = time.time()
 
-    while time.time() - start_time < duration:
-        distX = float(input("distx "))
-        #distX = tf.constant(distX, dtype=tf.float32)
-        crash = int(input("crash "))
-        #crash = tf.constant(crash, dtype=tf.float32)
-        #speed = tf.constant(speed, dtype=tf.float32)
-        distY = float(input("distY "))
-        #distY = tf.constant(distY, dtype=tf.float32)
-
-        with tf.GradientTape() as tape:
+    
+    distX = float(input("distx "))
+    #distX = tf.constant(distX, dtype=tf.float32)
+    crash = int(input("crash "))
+    #crash = tf.constant(crash, dtype=tf.float32)
+    #speed = tf.constant(speed, dtype=tf.float32)
+    distY = float(input("distY "))
+    loss=tf.Variable(0.0)
+    #distY = tf.constant(distY, dtype=tf.float32)
+    with tf.GradientTape() as tape:
+        while time.time() - start_time < duration:
             input_data = getData()
             predictions = model(input_data, training=True)
             loss = lossfunction(predictions,distX, crash, distY)
